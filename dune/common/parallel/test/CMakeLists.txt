@@ -29,6 +29,13 @@ dune_add_test(SOURCES remoteindicestest.cc
               LABELS quick)
 add_dune_mpi_flags(remoteindicestest)
 
+dune_add_test(SOURCES bufferlesscommtest.cc
+              MPI_RANKS 1 2 4
+              TIMEOUT 300
+              CMAKE_GUARD HAVE_MPI
+              LABELS quick)
+add_dune_mpi_flags(bufferlesscommtest)
+
 dune_add_test(SOURCES selectiontest.cc
               LABELS quick)
 add_dune_mpi_flags(selectiontest)

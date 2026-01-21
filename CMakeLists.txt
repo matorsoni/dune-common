@@ -9,6 +9,8 @@ if (CMAKE_VERSION VERSION_EQUAL 3.29.1)
   message(FATAL_ERROR "CMake 3.29.1 is not compatible with Dune. Use a different CMake version.")
 endif()
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # make sure our own modules are found
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
