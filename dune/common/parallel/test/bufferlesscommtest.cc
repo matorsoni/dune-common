@@ -75,6 +75,18 @@ private:
   int size_;
 };
 
+std::ostream& operator<<(std::ostream& os, const Array& a)
+{
+  if(a.size_>0)
+    os<< "{ "<<a.vals_[0];
+
+  for(int i=1; i<a.size_; i++)
+    os <<", "<< a.vals_[i];
+
+  os << " }";
+  return os;
+}
+
 struct ArrayGatherScatter
 {
   static double gather(const Array& a, int i);
@@ -93,18 +105,6 @@ inline void ArrayGatherScatter::scatter(Array& a, double v, int i)
 {
   a[i]=v;
 
-}
-
-std::ostream& operator<<(std::ostream& os, const Array& a)
-{
-  if(a.size_>0)
-    os<< "{ "<<a.vals_[0];
-
-  for(int i=1; i<a.size_; i++)
-    os <<", "<< a.vals_[i];
-
-  os << " }";
-  return os;
 }
 
 void testIndices(MPI_Comm comm)
@@ -259,29 +259,38 @@ void setupDistributed(Array& distArray, Dune::ParallelIndexSet<TG,Dune::Parallel
   else
     oend = end;
 
+  std::cout << rank << ": start: " << start << std::endl;
+  std::cout << rank << ": end: " << end << std::endl;
+  std::cout << rank << ": ostart: " << ostart << std::endl;
+  std::cout << rank << ": oend: " << oend << std::endl;
+
   distIndexSet.beginResize();
 
-  int localIndex=0;
   int size = NY*(oend-ostart);
-
   distArray.build(size);
 
+  int ownedIndex=0;
+  int overlapIndex=end-start;
   for(int j=0; j<NY; j++)
     for(int i=ostart; i<oend; i++) {
       bool isPublic = (i<=start+1)||(i>=end-1);
       GridFlags flag = owner;
-      if((i<start || i>=end)) {
-        distArray[localIndex]=-(i+j*NX+rank*NX*NY);
+      if (i < start || i >= end) {
         flag = overlap;
-      }else
-        distArray[localIndex]=i+j*NX+rank*NX*NY;
-
-      distIndexSet.add(i+j*NX, Dune::ParallelLocalIndex<GridFlags> (localIndex++,flag,isPublic));
+        distArray[overlapIndex]=-(i+j*NX+rank*NX*NY);
+        distIndexSet.add(i+j*NX, Dune::ParallelLocalIndex<GridFlags> (overlapIndex, flag, isPublic));
+        overlapIndex++;
+      } else {
+        distArray[ownedIndex]=i+j*NX+rank*NX*NY;
+        distIndexSet.add(i+j*NX, Dune::ParallelLocalIndex<GridFlags> (ownedIndex, flag, isPublic));
+        ownedIndex++;
+      }
     }
 
   distIndexSet.endResize();
 
-
+  std::cout << rank <<": distArray: " << distArray << std::endl;
+  std::cout << rank <<": distIndexSet: " << distIndexSet << std::endl;
 }
 
 template<int NX,int NY, typename TG, typename TA>
@@ -333,9 +342,9 @@ void testIndicesBuffered(MPI_Comm comm)
   RemoteIndices accuIndices(distIndexSet, globalIndexSet, comm);
 
   accuIndices.rebuild<true>();
-  std::cout<<"dist "<<rank<<": "<<distIndexSet<<std::endl;
-  std::cout<<"global "<<rank<<": "<<globalIndexSet<<std::endl;
-  std::cout << accuIndices<<std::endl;
+  std::cout<<"dist "<<rank<<": "<<distIndexSet<<std::endl<<std::endl;
+  std::cout<<"global "<<rank<<": "<<globalIndexSet<<std::endl<<std::endl;
+  std::cout <<"accuIndices: "<<rank <<": "<< accuIndices<<std::endl<<std::endl;
   std::cout <<" end remote indices"<<std::endl;
 
   RemoteIndices overlapIndices(distIndexSet, distIndexSet, comm);
@@ -350,7 +359,10 @@ void testIndicesBuffered(MPI_Comm comm)
   accuInterface.build(accuIndices, sourceFlags, destFlags);
   overlapInterface.build(overlapIndices, Dune::EnumItem<GridFlags,owner>(),
                          Dune::EnumItem<GridFlags,overlap>());
+
+  std::cout << rank <<": overlap inteface:\n";
   overlapInterface.print();
+  std::cout << rank <<": accu inteface:\n";
   accuInterface.print();
 
   //accuInterface.print();
@@ -699,7 +711,7 @@ int main(int argc, char **argv)
   while(size>1 && wait) ;
 #endif
 
-  //  testIndices(comm);
+  //testIndices(comm);
   testIndicesBuffered(comm);
 
   if(rank==0)
@@ -707,8 +719,8 @@ int main(int argc, char **argv)
   MPI_Barrier(comm);
 
 
-  //  testRedistributeIndices(comm);
-  testRedistributeIndicesBuffered(comm);
+  //testRedistributeIndices(comm);
+  //testRedistributeIndicesBuffered(comm);
   MPI_Comm_free(&comm);
   MPI_Finalize();
 
