@@ -1524,6 +1524,851 @@ namespace Dune
 
   }
 
+  /**
+   * @brief A communicator that uses buffers to gather and scatter
+   * the data to be send or received.
+   *
+   * Before the data is sent it is copied to a consecutive buffer and
+   * then that buffer is sent.
+   * The data is received in another buffer and then copied to the actual
+   * position.
+   */
+  class BufferlessCommunicator
+  {
+
+  public:
+    /**
+     * @brief Constructor.
+     */
+    BufferlessCommunicator();
+
+    /**
+     * @brief Build the buffers and information for the communication process.
+     *
+     *
+     * @param interface The interface that defines what indices are to be communicated.
+     */
+    template<class Data, class Interface>
+    typename std::enable_if<std::is_same<SizeOne,typename CommPolicy<Data>::IndexedTypeFlag>::value, void>::type
+    build(const Interface& interface);
+
+    /**
+     * @brief Build the buffers and information for the communication process.
+     *
+     * @param source The source in a forward send. The values will be copied from here to the send buffers.
+     * @param target The target in a forward send. The received values will be copied to here.
+     * @param interface The interface that defines what indices are to be communicated.
+     */
+    template<class Data, class Interface>
+    void build(const Data& source, const Data& target, const Interface& interface);
+
+    /**
+     * @brief Send from source to target.
+     *
+     * The template parameter GatherScatter (e.g. CopyGatherScatter) has to have a static method
+     * \code
+     * // Gather the data at index index of data
+     * static const typename CommPolicy<Data>::IndexedType>& gather(Data& data, int index);
+     *
+     * // Scatter the value at a index of data
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is SizeOne
+     * and
+     *
+     * \code
+     * static const typename CommPolicy<Data>::IndexedType> gather(Data& data, int index, int subindex);
+     *
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index, int subindex);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is VariableSize. Here subindex is the
+     * subindex of the block at index.
+     * @warning The source and target data have to have the same layout as the ones given
+     * to the build function in case of variable size values at the indices.
+     * @param source The values will be copied from here to the send buffers.
+     * @param dest The received values will be copied to here.
+     */
+    template<class GatherScatter, class Data>
+    void forward(const Data& source, Data& dest);
+
+    /**
+     * @brief Communicate in the reverse direction, i.e. send from target to source.
+     *
+     * The template parameter GatherScatter (e.g. CopyGatherScatter) has to have a static method
+     * \code
+     * // Gather the data at index index of data
+     * static const typename CommPolicy<Data>::IndexedType>& gather(Data& data, int index);
+     *
+     * // Scatter the value at a index of data
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is SizeOne
+     * and
+     *
+     * \code
+     * static const typename CommPolicy<Data>::IndexedType> gather(Data& data, int index, int subindex);
+     *
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index, int subindex);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is VariableSize. Here subindex is the
+     * subindex of the block at index.
+     * @warning The source and target data have to have the same layout as the ones given
+     * to the build function in case of variable size values at the indices.
+     * @param dest The values will be copied from here to the send buffers.
+     * @param source The received values will be copied to here.
+     */
+    template<class GatherScatter, class Data>
+    void backward(Data& source, const Data& dest);
+
+    /**
+     * @brief Forward send where target and source are the same.
+     *
+     * The template parameter GatherScatter has to have a static method
+     * \code
+     * // Gather the data at index index of data
+     * static const typename CommPolicy<Data>::IndexedType>& gather(Data& data, int index);
+     *
+     * // Scatter the value at a index of data
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is SizeOne
+     * and
+     *
+     * \code
+     * static const typename CommPolicy<Data>::IndexedType> gather(Data& data, int index, int subindex);
+     *
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index, int subindex);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is VariableSize. Here subindex is the
+     * subindex of the block at index.
+     * @param data Source and target of the communication.
+     */
+    template<class GatherScatter, class Data>
+    void forward(Data& data);
+
+    /**
+     * @brief Backward send where target and source are the same.
+     *
+     * The template parameter GatherScatter has to have a static method
+     * \code
+     * // Gather the data at index index of data
+     * static const typename CommPolicy<Data>::IndexedType>& gather(Data& data, int index);
+     *
+     * // Scatter the value at a index of data
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is SizeOne
+     * and
+     *
+     * \code
+     * static const typename CommPolicy<Data>::IndexedType> gather(Data& data, int index, int subindex);
+     *
+     * static void scatter(Data& data, typename CommPolicy<Data>::IndexedType> value,
+     *                     int index, int subindex);
+     * \endcode
+     * in the case where CommPolicy<Data>::IndexedTypeFlag is VariableSize. Here subindex is the
+     * subindex of the block at index.
+     * @param data Source and target of the communication.
+     */
+    template<class GatherScatter, class Data>
+    void backward(Data& data);
+
+    /**
+     * @brief Free the allocated memory (i.e. buffers and message information.
+     */
+    void free();
+
+    /**
+     * @brief Destructor.
+     */
+    ~BufferlessCommunicator();
+
+  private:
+
+    /**
+     * @brief The type of the map that maps interface information to processors.
+     */
+    typedef std::map<int,std::pair<InterfaceInformation,InterfaceInformation> >
+    InterfaceMap;
+
+
+    /**
+     * @brief Functors for message size calculation
+     */
+    template<class Data, typename IndexedTypeFlag>
+    struct MessageSizeCalculator
+    {};
+
+    /**
+     * @brief Functor for message size calculation for datatypes
+     * where at each index is only one value.
+     */
+    template<class Data>
+    struct MessageSizeCalculator<Data,SizeOne>
+    {
+      /**
+       * @brief Calculate the number of values in message
+       * @param info The information about the interface corresponding
+       * to the message.
+       * @return The number of values in th message.
+       */
+      inline int operator()(const InterfaceInformation& info) const;
+      /**
+       * @brief Calculate the number of values in message
+       *
+       * @param info The information about the interface corresponding
+       * to the message.
+       * @param data ignored.
+       * @return The number of values in th message.
+       */
+      inline int operator()(const Data& data, const InterfaceInformation& info) const;
+    };
+
+    /**
+     * @brief Functor for message size calculation for datatypes
+     * where at each index can be a variable number of values.
+     */
+    template<class Data>
+    struct MessageSizeCalculator<Data,VariableSize>
+    {
+      /**
+       * @brief Calculate the number of values in message
+       *
+       * @param info The information about the interface corresponding
+       * to the message.
+       * @param data A representative of the data we send.
+       * @return The number of values in th message.
+       */
+      inline int operator()(const Data& data, const InterfaceInformation& info) const;
+    };
+
+    /**
+     * @brief Functors for message data gathering.
+     */
+    template<class Data, class GatherScatter, bool send, typename IndexedTypeFlag>
+    struct MessageGatherer
+    {};
+
+    /**
+     * @brief Functor for message data gathering for datatypes
+     * where at each index is only one value.
+     */
+    template<class Data, class GatherScatter, bool send>
+    struct MessageGatherer<Data,GatherScatter,send,SizeOne>
+    {
+      /** @brief The type of the values we send. */
+      typedef typename CommPolicy<Data>::IndexedType Type;
+
+      /**
+       * @brief The type of the functor that does the actual copying
+       * during the data Scattering.
+       */
+      typedef GatherScatter Gatherer;
+
+      /**
+       * @brief The communication mode
+       *
+       * True if this was a forward communication.
+       */
+      constexpr static bool forward = send;
+
+      /**
+       * @brief Copies the values to send into the buffer.
+       * @param interface The interface used in the send.
+       * @param data The data from which we copy the values.
+       * @param buffer The send buffer to copy to.
+       * @param bufferSize The size of the buffer in bytes. For checks.
+       */
+      inline void operator()(const InterfaceMap& interface, const Data& data, Type* buffer, size_t bufferSize) const;
+    };
+
+    /**
+     * @brief Functor for message data scattering for datatypes
+     * where at each index can be a variable size of values
+     */
+    template<class Data, class GatherScatter, bool send>
+    struct MessageGatherer<Data,GatherScatter,send,VariableSize>
+    {
+      /** @brief The type of the values we send. */
+      typedef typename CommPolicy<Data>::IndexedType Type;
+
+      /**
+       * @brief The type of the functor that does the actual copying
+       * during the data Scattering.
+       */
+      typedef GatherScatter Gatherer;
+
+      /**
+       * @brief The communication mode
+       *
+       * True if this was a forward communication.
+       */
+      constexpr static bool forward = send;
+
+      /**
+       * @brief Copies the values to send into the buffer.
+       * @param interface The interface used in the send.
+       * @param data The data from which we copy the values.
+       * @param buffer The send buffer to copy to.
+       * @param bufferSize The size of the buffer in bytes. For checks.
+       */
+      inline void operator()(const InterfaceMap& interface, const Data& data, Type* buffer, size_t bufferSize) const;
+    };
+
+    /**
+     * @brief Functors for message data scattering.
+     */
+    template<class Data, class GatherScatter, bool send, typename IndexedTypeFlag>
+    struct MessageScatterer
+    {};
+
+    /**
+     * @brief Functor for message data gathering for datatypes
+     * where at each index is only one value.
+     */
+    template<class Data, class GatherScatter, bool send>
+    struct MessageScatterer<Data,GatherScatter,send,SizeOne>
+    {
+      /** @brief The type of the values we send. */
+      typedef typename CommPolicy<Data>::IndexedType Type;
+
+      /**
+       * @brief The type of the functor that does the actual copying
+       * during the data Scattering.
+       */
+      typedef GatherScatter Scatterer;
+
+      /**
+       * @brief The communication mode
+       *
+       * True if this was a forward communication.
+       */
+      constexpr static bool forward = send;
+
+      /**
+       * @brief Copy the message data from the receive buffer to the data.
+       * @param interface The interface used in the send.
+       * @param data The data to which we copy the values.
+       * @param buffer The receive buffer to copy from.
+       * @param proc The rank of the process the message is from.
+       */
+      inline void operator()(const InterfaceMap& interface, Data& data, Type* buffer, const int& proc) const;
+    };
+    /**
+     * @brief Functor for message data scattering for datatypes
+     * where at each index can be a variable size of values
+     */
+    template<class Data, class GatherScatter, bool send>
+    struct MessageScatterer<Data,GatherScatter,send,VariableSize>
+    {
+      /** @brief The type of the values we send. */
+      typedef typename CommPolicy<Data>::IndexedType Type;
+
+      /**
+       * @brief The type of the functor that does the actual copying
+       * during the data Scattering.
+       */
+      typedef GatherScatter Scatterer;
+
+      /**
+       * @brief The communication mode
+       *
+       * True if this was a forward communication.
+       */
+      constexpr static bool forward = send;
+
+      /**
+       * @brief Copy the message data from the receive buffer to the data.
+       * @param interface The interface used in the send.
+       * @param data The data to which we copy the values.
+       * @param buffer The receive buffer to copy from.
+       * @param proc The rank of the process the message is from.
+       */
+      inline void operator()(const InterfaceMap& interface, Data& data, Type* buffer, const int& proc) const;
+    };
+
+    /**
+     * @brief Information about a message to send.
+     */
+    struct MessageInformation
+    {
+      /** @brief Constructor. */
+      MessageInformation()
+        : start_(0), size_(0)
+      {}
+
+      /**
+       * @brief Constructor.
+       * @param start The start of the message in the global buffer.
+       * Not in bytes but in number of values from the beginning of
+       * the buffer
+       * @param size The size of the message in bytes.
+       */
+      MessageInformation(size_t start, size_t size)
+        : start_(start), size_(size)
+      {}
+      /**
+       * @brief Start of the message in the buffer counted in number of value.
+       */
+      size_t start_;
+      /**
+       * @brief Number of bytes in the message.
+       */
+      size_t size_;
+    };
+
+    /**
+     * @brief Type of the map of information about the messages to send.
+     *
+     * The key is the process number to communicate with and the value is
+     * the pair of information about sending and receiving messages.
+     */
+    typedef std::map<int,std::pair<MessageInformation,MessageInformation> >
+    InformationMap;
+    /**
+     * @brief Gathered information about the messages to send.
+     */
+    InformationMap messageInformation_;
+    /**
+     * @brief Communication buffers.
+     */
+    char* buffers_[2];
+    /**
+     * @brief The size of the communication buffers
+     */
+    size_t bufferSize_[2];
+
+    /**
+     * @brief The tag we use for communication.
+     */
+    constexpr static int commTag_ = 0;
+
+    /**
+     * @brief The interface we currently work with.
+     */
+    std::map<int,std::pair<InterfaceInformation,InterfaceInformation> > interfaces_;
+
+    MPI_Comm communicator_;
+
+    /**
+     * @brief Send and receive Data.
+     */
+    template<class GatherScatter, bool FORWARD, class Data>
+    void sendRecv(const Data& source, Data& target);
+
+  };
+
+  inline BufferlessCommunicator::BufferlessCommunicator()
+  {
+    buffers_[0]=0;
+    buffers_[1]=0;
+    bufferSize_[0]=0;
+    bufferSize_[1]=0;
+  }
+
+  template<class Data, class Interface>
+  typename std::enable_if<std::is_same<SizeOne, typename CommPolicy<Data>::IndexedTypeFlag>::value, void>::type
+  BufferlessCommunicator::build(const Interface& interface)
+  {
+    interfaces_=interface.interfaces();
+    communicator_=interface.communicator();
+    typedef typename std::map<int,std::pair<InterfaceInformation,InterfaceInformation> >
+    ::const_iterator const_iterator;
+    typedef typename CommPolicy<Data>::IndexedTypeFlag Flag;
+    const const_iterator end = interfaces_.end();
+    int lrank;
+    MPI_Comm_rank(communicator_, &lrank);
+
+    bufferSize_[0]=0;
+    bufferSize_[1]=0;
+
+    for(const_iterator interfacePair = interfaces_.begin();
+        interfacePair != end; ++interfacePair) {
+      int noSend = MessageSizeCalculator<Data,Flag>() (interfacePair->second.first);
+      int noRecv = MessageSizeCalculator<Data,Flag>() (interfacePair->second.second);
+      if (noSend + noRecv > 0)
+        messageInformation_.insert(std::make_pair(interfacePair->first,
+                                                std::make_pair(MessageInformation(bufferSize_[0],
+                                                                                  noSend*sizeof(typename CommPolicy<Data>::IndexedType)),
+                                                               MessageInformation(bufferSize_[1],
+                                                                                  noRecv*sizeof(typename CommPolicy<Data>::IndexedType)))));
+      bufferSize_[0] += noSend;
+      bufferSize_[1] += noRecv;
+    }
+
+    // allocate the buffers
+    bufferSize_[0] *= sizeof(typename CommPolicy<Data>::IndexedType);
+    bufferSize_[1] *= sizeof(typename CommPolicy<Data>::IndexedType);
+
+    buffers_[0] = new char[bufferSize_[0]];
+    buffers_[1] = new char[bufferSize_[1]];
+  }
+
+  template<class Data, class Interface>
+  void BufferlessCommunicator::build(const Data& source, const Data& dest, const Interface& interface)
+  {
+
+    interfaces_=interface.interfaces();
+    communicator_=interface.communicator();
+    typedef typename std::map<int,std::pair<InterfaceInformation,InterfaceInformation> >
+    ::const_iterator const_iterator;
+    typedef typename CommPolicy<Data>::IndexedTypeFlag Flag;
+    const const_iterator end = interfaces_.end();
+
+    bufferSize_[0]=0;
+    bufferSize_[1]=0;
+
+    for(const_iterator interfacePair = interfaces_.begin();
+        interfacePair != end; ++interfacePair) {
+      int noSend = MessageSizeCalculator<Data,Flag>() (source, interfacePair->second.first);
+      int noRecv = MessageSizeCalculator<Data,Flag>() (dest, interfacePair->second.second);
+      if (noSend + noRecv > 0)
+        messageInformation_.insert(std::make_pair(interfacePair->first,
+                                                std::make_pair(MessageInformation(bufferSize_[0],
+                                                                                  noSend*sizeof(typename CommPolicy<Data>::IndexedType)),
+                                                               MessageInformation(bufferSize_[1],
+                                                                                  noRecv*sizeof(typename CommPolicy<Data>::IndexedType)))));
+      bufferSize_[0] += noSend;
+      bufferSize_[1] += noRecv;
+    }
+
+    bufferSize_[0] *= sizeof(typename CommPolicy<Data>::IndexedType);
+    bufferSize_[1] *= sizeof(typename CommPolicy<Data>::IndexedType);
+    // allocate the buffers
+    buffers_[0] = new char[bufferSize_[0]];
+    buffers_[1] = new char[bufferSize_[1]];
+  }
+
+  inline void BufferlessCommunicator::free()
+  {
+    messageInformation_.clear();
+    if(buffers_[0])
+      delete[] buffers_[0];
+
+    if(buffers_[1])
+      delete[] buffers_[1];
+    buffers_[0]=buffers_[1]=0;
+  }
+
+  inline BufferlessCommunicator::~BufferlessCommunicator()
+  {
+    free();
+  }
+
+  template<class Data>
+  inline int BufferlessCommunicator::MessageSizeCalculator<Data,SizeOne>::operator()
+    (const InterfaceInformation& info) const
+  {
+    return info.size();
+  }
+
+
+  template<class Data>
+  inline int BufferlessCommunicator::MessageSizeCalculator<Data,SizeOne>::operator()
+    (const Data&, const InterfaceInformation& info) const
+  {
+    return operator()(info);
+  }
+
+
+  template<class Data>
+  inline int BufferlessCommunicator::MessageSizeCalculator<Data, VariableSize>::operator()
+    (const Data& data, const InterfaceInformation& info) const
+  {
+    int entries=0;
+
+    for(size_t i=0; i < info.size(); i++)
+      entries += CommPolicy<Data>::getSize(data,info[i]);
+
+    return entries;
+  }
+
+
+  template<class Data, class GatherScatter, bool FORWARD>
+  inline void BufferlessCommunicator::MessageGatherer<Data,GatherScatter,FORWARD,VariableSize>::operator()(const InterfaceMap& interfaces,const Data& data, Type* buffer, [[maybe_unused]] size_t bufferSize) const
+  {
+    typedef typename InterfaceMap::const_iterator
+    const_iterator;
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    const const_iterator end = interfaces.end();
+    size_t index=0;
+
+    for(const_iterator interfacePair = interfaces.begin();
+        interfacePair != end; ++interfacePair) {
+      int size = forward ? interfacePair->second.first.size() :
+                 interfacePair->second.second.size();
+
+      for(int i=0; i < size; i++) {
+        int local = forward ? interfacePair->second.first[i] :
+                    interfacePair->second.second[i];
+        for(std::size_t j=0; j < CommPolicy<Data>::getSize(data, local); j++, index++) {
+
+#ifdef DUNE_ISTL_WITH_CHECKING
+          assert(bufferSize>=(index+1)*sizeof(typename CommPolicy<Data>::IndexedType));
+#endif
+          buffer[index]=GatherScatter::gather(data, local, j);
+        }
+
+      }
+    }
+
+  }
+
+
+  template<class Data, class GatherScatter, bool FORWARD>
+  inline void BufferlessCommunicator::MessageGatherer<Data,GatherScatter,FORWARD,SizeOne>::operator()(
+    const InterfaceMap& interfaces, const Data& data, Type* buffer, [[maybe_unused]] size_t bufferSize) const
+  {
+    typedef typename InterfaceMap::const_iterator
+    const_iterator;
+    const const_iterator end = interfaces.end();
+    size_t index = 0;
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    for(const_iterator interfacePair = interfaces.begin();
+        interfacePair != end; ++interfacePair) {
+      size_t size = FORWARD ? interfacePair->second.first.size() :
+                    interfacePair->second.second.size();
+
+      for(size_t i=0; i < size; i++) {
+
+#ifdef DUNE_ISTL_WITH_CHECKING
+        assert(bufferSize>=(index+1)*sizeof(typename CommPolicy<Data>::IndexedType));
+#endif
+
+        buffer[index++] = GatherScatter::gather(data, FORWARD ? interfacePair->second.first[i] :
+                                                interfacePair->second.second[i]);
+      }
+    }
+
+  }
+
+
+  template<class Data, class GatherScatter, bool FORWARD>
+  inline void BufferlessCommunicator::MessageScatterer<Data,GatherScatter,FORWARD,VariableSize>::operator()(const InterfaceMap& interfaces, Data& data, Type* buffer, const int& proc) const
+  {
+    typedef typename InterfaceMap::value_type::second_type::first_type Information;
+    const typename InterfaceMap::const_iterator infoPair = interfaces.find(proc);
+
+    assert(infoPair!=interfaces.end());
+
+    const Information& info = FORWARD ? infoPair->second.second :
+                              infoPair->second.first;
+
+    for(size_t i=0, index=0; i < info.size(); i++) {
+      for(size_t j=0; j < CommPolicy<Data>::getSize(data, info[i]); j++)
+        GatherScatter::scatter(data, buffer[index++], info[i], j);
+    }
+  }
+
+
+  template<class Data, class GatherScatter, bool FORWARD>
+  inline void BufferlessCommunicator::MessageScatterer<Data,GatherScatter,FORWARD,SizeOne>::operator()(const InterfaceMap& interfaces, Data& data, Type* buffer, const int& proc) const
+  {
+    typedef typename InterfaceMap::value_type::second_type::first_type Information;
+    const typename InterfaceMap::const_iterator infoPair = interfaces.find(proc);
+
+    assert(infoPair!=interfaces.end());
+
+    const Information& info = FORWARD ? infoPair->second.second :
+                              infoPair->second.first;
+
+    for(size_t i=0; i < info.size(); i++) {
+      GatherScatter::scatter(data, buffer[i], info[i]);
+    }
+  }
+
+
+  template<class GatherScatter,class Data>
+  void BufferlessCommunicator::forward(Data& data)
+  {
+    this->template sendRecv<GatherScatter,true>(data, data);
+  }
+
+
+  template<class GatherScatter, class Data>
+  void BufferlessCommunicator::backward(Data& data)
+  {
+    this->template sendRecv<GatherScatter,false>(data, data);
+  }
+
+
+  template<class GatherScatter, class Data>
+  void BufferlessCommunicator::forward(const Data& source, Data& dest)
+  {
+    this->template sendRecv<GatherScatter,true>(source, dest);
+  }
+
+
+  template<class GatherScatter, class Data>
+  void BufferlessCommunicator::backward(Data& source, const Data& dest)
+  {
+    this->template sendRecv<GatherScatter,false>(dest, source);
+  }
+
+
+  template<class GatherScatter, bool FORWARD, class Data>
+  void BufferlessCommunicator::sendRecv(const Data& source, Data& dest)
+  {
+    int rank, lrank;
+
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    MPI_Comm_rank(MPI_COMM_WORLD,&lrank);
+
+    typedef typename CommPolicy<Data>::IndexedType Type;
+    Type *sendBuffer, *recvBuffer;
+    size_t sendBufferSize;
+#ifndef NDEBUG
+    size_t recvBufferSize;
+#endif
+
+    if(FORWARD) {
+      sendBuffer = reinterpret_cast<Type*>(buffers_[0]);
+      sendBufferSize = bufferSize_[0];
+      recvBuffer = reinterpret_cast<Type*>(buffers_[1]);
+#ifndef NDEBUG
+      recvBufferSize = bufferSize_[1];
+#endif
+    }else{
+      sendBuffer = reinterpret_cast<Type*>(buffers_[1]);
+      sendBufferSize = bufferSize_[1];
+      recvBuffer = reinterpret_cast<Type*>(buffers_[0]);
+#ifndef NDEBUG
+      recvBufferSize = bufferSize_[0];
+#endif
+    }
+    typedef typename CommPolicy<Data>::IndexedTypeFlag Flag;
+
+    MessageGatherer<Data,GatherScatter,FORWARD,Flag>() (interfaces_, source, sendBuffer, sendBufferSize);
+
+    MPI_Request* sendRequests = new MPI_Request[messageInformation_.size()];
+    MPI_Request* recvRequests = new MPI_Request[messageInformation_.size()];
+    /* Number of recvRequests that are not MPI_REQUEST_NULL */
+    size_t numberOfRealRecvRequests = 0;
+
+    // Setup receive first
+    typedef typename InformationMap::const_iterator const_iterator;
+
+    const const_iterator end = messageInformation_.end();
+    size_t i=0;
+    int* processMap = new int[messageInformation_.size()];
+
+    for(const_iterator info = messageInformation_.begin(); info != end; ++info, ++i) {
+      processMap[i]=info->first;
+      if(FORWARD) {
+        assert(info->second.second.start_*sizeof(typename CommPolicy<Data>::IndexedType)+info->second.second.size_ <= recvBufferSize );
+        Dune::dvverb<<rank<<": receiving "<<info->second.second.size_<<" from "<<info->first<<std::endl;
+        if(info->second.second.size_) {
+          MPI_Irecv(recvBuffer+info->second.second.start_, info->second.second.size_,
+                    MPI_BYTE, info->first, commTag_, communicator_,
+                    recvRequests+i);
+          numberOfRealRecvRequests += 1;
+        } else {
+          // Nothing to receive -> set request to inactive
+          recvRequests[i]=MPI_REQUEST_NULL;
+        }
+      }else{
+        assert(info->second.first.start_*sizeof(typename CommPolicy<Data>::IndexedType)+info->second.first.size_ <= recvBufferSize );
+        Dune::dvverb<<rank<<": receiving "<<info->second.first.size_<<" to "<<info->first<<std::endl;
+        if(info->second.first.size_) {
+          MPI_Irecv(recvBuffer+info->second.first.start_, info->second.first.size_,
+                    MPI_BYTE, info->first, commTag_, communicator_,
+                    recvRequests+i);
+          numberOfRealRecvRequests += 1;
+        } else {
+          // Nothing to receive -> set request to inactive
+          recvRequests[i]=MPI_REQUEST_NULL;
+        }
+      }
+    }
+
+    // now the send requests
+    i=0;
+    for(const_iterator info = messageInformation_.begin(); info != end; ++info, ++i)
+      if(FORWARD) {
+        assert(info->second.second.start_*sizeof(typename CommPolicy<Data>::IndexedType)+info->second.second.size_ <= recvBufferSize );
+        Dune::dvverb<<rank<<": sending "<<info->second.first.size_<<" to "<<info->first<<std::endl;
+        assert(info->second.first.start_*sizeof(typename CommPolicy<Data>::IndexedType)+info->second.first.size_ <= sendBufferSize );
+        if(info->second.first.size_)
+          MPI_Issend(sendBuffer+info->second.first.start_, info->second.first.size_,
+                     MPI_BYTE, info->first, commTag_, communicator_,
+                     sendRequests+i);
+        else
+          // Nothing to send -> set request to inactive
+          sendRequests[i]=MPI_REQUEST_NULL;
+      }else{
+        assert(info->second.second.start_*sizeof(typename CommPolicy<Data>::IndexedType)+info->second.second.size_ <= sendBufferSize );
+        Dune::dvverb<<rank<<": sending "<<info->second.second.size_<<" to "<<info->first<<std::endl;
+        if(info->second.second.size_)
+          MPI_Issend(sendBuffer+info->second.second.start_, info->second.second.size_,
+                     MPI_BYTE, info->first, commTag_, communicator_,
+                     sendRequests+i);
+        else
+          // Nothing to send -> set request to inactive
+          sendRequests[i]=MPI_REQUEST_NULL;
+      }
+
+    // Wait for completion of receive and immediately start scatter
+    i=0;
+    //int success = 1;
+    int finished = MPI_UNDEFINED;
+    MPI_Status status; //[messageInformation_.size()];
+    //MPI_Waitall(messageInformation_.size(), recvRequests, status);
+
+    for(i=0; i< numberOfRealRecvRequests; i++) {
+      status.MPI_ERROR=MPI_SUCCESS;
+      MPI_Waitany(messageInformation_.size(), recvRequests, &finished, &status);
+      assert(finished != MPI_UNDEFINED);
+
+      if(status.MPI_ERROR==MPI_SUCCESS) {
+        int& proc = processMap[finished];
+        typename InformationMap::const_iterator infoIter = messageInformation_.find(proc);
+        assert(infoIter != messageInformation_.end());
+
+        MessageInformation info = (FORWARD) ? infoIter->second.second : infoIter->second.first;
+        assert(info.start_+info.size_ <= recvBufferSize);
+
+        MessageScatterer<Data,GatherScatter,FORWARD,Flag>() (interfaces_, dest, recvBuffer+info.start_, proc);
+      }else{
+        std::cerr<<rank<<": MPI_Error occurred while receiving message from "<<processMap[finished]<<std::endl;
+        //success=0;
+      }
+    }
+
+    MPI_Status recvStatus;
+
+    // Wait for completion of sends
+    for(i=0; i< messageInformation_.size(); i++)
+      if(MPI_SUCCESS!=MPI_Wait(sendRequests+i, &recvStatus)) {
+        std::cerr<<rank<<": MPI_Error occurred while sending message to "<<processMap[finished]<<std::endl;
+        //success=0;
+      }
+    /*
+       int globalSuccess;
+       MPI_Allreduce(&success, &globalSuccess, 1, MPI_INT, MPI_MIN, interface_->communicator());
+
+       if(!globalSuccess)
+       DUNE_THROW(CommunicationError, "A communication error occurred!");
+     */
+    delete[] processMap;
+    delete[] sendRequests;
+    delete[] recvRequests;
+
+  }
+
+
+
 #endif  // DOXYGEN
 
   /** @} */

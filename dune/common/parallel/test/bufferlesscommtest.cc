@@ -362,7 +362,7 @@ void testIndicesBuffered(MPI_Comm comm)
 
   //accuInterface.print();
 
-  Dune::BufferedCommunicator accumulator, overlapExchanger;
+  Dune::BufferlessCommunicator accumulator, overlapExchanger;
 
   accumulator.build<Array>(accuInterface);
 
@@ -621,8 +621,8 @@ void testRedistributeIndicesBuffered(MPI_Comm comm)
   redistributeInterface.build(redistributeIndices, fowner, fowner);
   overlapInterface.build(overlapIndices, fowner, foverlap);
 
-  BufferedCommunicator redistribute;
-  BufferedCommunicator overlapComm;
+  BufferlessCommunicator redistribute;
+  BufferlessCommunicator overlapComm;
 
   redistribute.build(array, redistributedArray, redistributeInterface);
   overlapComm.build<Array>(overlapInterface);
