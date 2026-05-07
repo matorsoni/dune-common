@@ -3,6 +3,7 @@
 
 cmake_minimum_required(VERSION 3.13)
 project(dune-common LANGUAGES C CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # make sure our own modules are found
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
