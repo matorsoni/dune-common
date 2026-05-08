@@ -263,29 +263,34 @@ void setupDistributed(Array& distArray, Dune::ParallelIndexSet<TG,Dune::Parallel
   else
     oend = end;
 
+  std::cout << rank << ": start: " << start << std::endl;
+  std::cout << rank << ": end: " << end << std::endl;
+  std::cout << rank << ": ostart: " << ostart << std::endl;
+  std::cout << rank << ": oend: " << oend << std::endl;
+
   distIndexSet.beginResize();
 
-  int localIndex=0;
   int size = NY*(oend-ostart);
 
   distArray.build(size);
 
+  int ownedIndex = 0;
+  int overlapIndex = end - start;
   for(int j=0; j<NY; j++)
     for(int i=ostart; i<oend; i++) {
-      bool isPublic = (i<=start+1)||(i>=end-1);
-      GridFlags flag = owner;
-      if((i<start || i>=end)) {
-        distArray[localIndex]=-(i+j*NX+rank*NX*NY);
-        flag = overlap;
-      }else
-        distArray[localIndex]=i+j*NX+rank*NX*NY;
-
-      distIndexSet.add(i+j*NX, Dune::ParallelLocalIndex<GridFlags> (localIndex++,flag,isPublic));
+      bool isPublic = (i<=start+1) || (i>=end-1);
+      if(i < start || i >= end) {
+        distArray[overlapIndex]=-(i+j*NX+rank*NX*NY);
+        distIndexSet.add(i+j*NX, Dune::ParallelLocalIndex<GridFlags> (overlapIndex, overlap, isPublic));
+        overlapIndex++;
+      } else {
+        distArray[ownedIndex]=i+j*NX+rank*NX*NY;
+        distIndexSet.add(i+j*NX, Dune::ParallelLocalIndex<GridFlags> (ownedIndex, owner, isPublic));
+        ownedIndex++;
+      }
     }
 
   distIndexSet.endResize();
-
-
 }
 
 template<int NX,int NY, typename TG, typename TA>
@@ -715,7 +720,7 @@ int main(int argc, char **argv)
 
 
   //  testRedistributeIndices(comm);
-  testRedistributeIndicesBuffered(comm);
+  //testRedistributeIndicesBuffered(comm);
   MPI_Comm_free(&comm);
   MPI_Finalize();
 
